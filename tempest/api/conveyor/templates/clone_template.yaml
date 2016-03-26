@@ -1,0 +1,177 @@
+description: Generated template
+expire_time: '2019-04-06T12:24:58.041855'
+plan_type: 'clone'
+heat_template_version: '2013-05-23'
+parameters:
+  image_0:
+    default: 7974defa-cb95-47d3-8609-ff0e2347291a
+    description: Image to use to boot server or volume
+    type: string
+plan_type: clone
+resources:
+  floatingip_0:
+    extra_properties:
+      id: b416a8ee-92be-4416-909f-171479f238e0
+    properties:
+      floating_network_id:
+        get_resource: network_1
+      port_id:
+        get_resource: port_0
+    type: OS::Neutron::FloatingIP
+  keypair_0:
+    extra_properties:
+      id: test
+    properties:
+      name: test
+      public_key: 'ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDCmdnmkdaneD5SlHD36vr6rPGdk2UBNYJnoTBX2w4rTu29a7ny7nWv0ysc1WNIcE+9cf9Cirxb7fmjoMuBYa4C3h7etLiz4PmOpFn+2JdwLkXtLgJQYG3MTxuGC8yA6kQhjOsPBKU0lm9olOxTZgnBRkgKgWMN06BCNES3ZX9rhe0B/k3U3/byrP2M9dAG5jnD+HNj2kZw2n1SgUEZnd/toWltfsl/Yvoq+dQvPN9iOF808/VcvDfb7uJ1aPScIUW0jtDV00v6cM/WxWsHyvifvP8nhJ10qx3y6YnZl5Gk0HtcqhsT0Rbx3voUJSlWoGvBF41S6uZh98Be8MVOwURx
+        Generated-by-Nova
+
+        '
+    type: OS::Nova::KeyPair
+  network_0:
+    extra_properties:
+      id: 7dd73f1a-804e-4f96-a527-89a8a44f4473
+    properties:
+      admin_state_up: true
+      name: migrate-net
+      shared: false
+      value_specs:
+        provider:network_type: vxlan
+        provider:segmentation_id: 5001
+        router:external: false
+    type: OS::Neutron::Net
+  network_1:
+    extra_properties:
+      id: 7183650e-16bc-4920-98b6-0c0e22c7c282
+    properties:
+      admin_state_up: true
+      name: ext-net
+      shared: false
+      value_specs:
+        provider:network_type: vlan
+        provider:physical_network: physnet2
+        provider:segmentation_id: 1000
+        router:external: true
+    type: OS::Neutron::Net
+  port_0:
+    extra_properties:
+      id: 8a049653-5e7b-4166-af3f-a01e8d38f5ca
+    properties:
+      admin_state_up: true
+      fixed_ips:
+      - ip_address: 192.168.3.4
+        subnet_id:
+          get_resource: subnet_0
+      name: ''
+      network_id:
+        get_resource: network_0
+      security_groups:
+      - get_resource: security_group_0
+      value_specs:
+        binding:profile: {}
+        binding:vnic_type: normal
+    type: OS::Neutron::Port
+  router_0:
+    extra_properties:
+      id: 1e3bb90a-f3a8-4d63-a34c-8855475c21c2
+    properties:
+      admin_state_up: true
+      external_gateway_info:
+        enable_snat: true
+        network:
+          get_resource: network_1
+      name: router-test
+    type: OS::Neutron::Router
+  router_0_interface_0:
+    extra_properties:
+      id: 34a8fec7-9799-4ecd-9276-18c1a0644514
+    properties:
+      router_id:
+        get_resource: router_0
+      subnet_id:
+        get_resource: subnet_0
+    type: OS::Neutron::RouterInterface
+  security_group_0:
+    extra_properties:
+      id: 2a1c04be-84b9-4c41-8c4b-c8b933722b93
+    properties:
+      description: default
+      name: _default
+      rules:
+      - direction: ingress
+        ethertype: IPv4
+        remote_mode: remote_group_id
+      - direction: egress
+        ethertype: IPv4
+      - direction: ingress
+        ethertype: IPv6
+        remote_mode: remote_group_id
+      - direction: egress
+        ethertype: IPv6
+      - direction: ingress
+        ethertype: IPv4
+        remote_ip_prefix: 162.3.0.0/16
+    type: OS::Neutron::SecurityGroup
+  server_0:
+    extra_properties:
+      gw_url: http://10.11.0.73:9998
+      id: 81c745e0-207b-4e62-9b1b-47c2ac708c5b
+      migrate_port_id: b062f230-7a20-4a8e-a454-d930ebdf5bc1
+    properties:
+      availability_zone: az01.shenzhen--fusionsphere
+      block_device_mapping_v2:
+      - device_name: /dev/vdb
+        volume_id:
+          get_resource: volume_0
+      flavor: 3
+      image:
+        get_param: image_0
+      key_name:
+        get_resource: keypair_0
+      name: test
+      networks:
+      - port:
+          get_resource: port_0
+    type: OS::Nova::Server
+  subnet_0:
+    extra_properties:
+      id: c23bd6b6-f459-4cf9-8d0d-c6bcde2605b0
+    properties:
+      allocation_pools:
+      - end: 192.168.3.254
+        start: 192.168.3.2
+      cidr: 192.168.3.0/24
+      enable_dhcp: true
+      gateway_ip: 192.168.3.1
+      ip_version: 4
+      name: ''
+      network_id:
+        get_resource: network_0
+    type: OS::Neutron::Subnet
+  subnet_1:
+    extra_properties:
+      id: 22d95423-171c-471f-b47c-66fb862bf9a8
+    properties:
+      allocation_pools:
+      - end: 162.3.140.100
+        start: 162.3.140.85
+      cidr: 162.3.0.0/16
+      enable_dhcp: true
+      gateway_ip: 162.3.110.1
+      ip_version: 4
+      name: physnet1-ext-subnet
+      network_id:
+        get_resource: network_1
+    type: OS::Neutron::Subnet
+  volume_0:
+    extra_properties:
+      id: 5d3f0cf9-bca8-44b7-8af1-de026248e7ab
+    properties:
+      availability_zone: az01.shenzhen--fusionsphere
+      metadata:
+        attached_mode: rw
+        readonly: 'False'
+      name: test11
+      size: 1
+      volume_type: 5df3736c-6276-4e25-b5f1-db6dc56c3c32
+    type: OS::Cinder::Volume
