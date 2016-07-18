@@ -172,7 +172,7 @@ class ConveyorCloneTest(base.BaseConveyorTest):
         self.clear_temp_servers(clone_servers)
         self.clear_temp_volumes(clone_volumes)
     
-    #@testtools.skip('Do not support clone in same az')  
+    @testtools.skip('Do not support clone in same az, need modify')  
     @test.attr(type='smoke')
     def test_clone_update_fix_ip_in_same_az(self):
         src_server = self.servers[0]
@@ -341,7 +341,7 @@ class ConveyorCloneTest(base.BaseConveyorTest):
         self.clear_temp_volumes(clone_volumes)
         
         
-    #@testtools.skip('Do not support clone between different az') 
+    @testtools.skip('Do not support clone between different az,need modify') 
     @test.attr(type='smoke')
     def test_clone_update_fix_ip_in_diff_az(self):
         src_server = self.servers[0]
