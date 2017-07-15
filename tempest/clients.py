@@ -179,6 +179,8 @@ from tempest.services.volume.v2.json.volumes_client import \
     VolumesClient as VolumesV2Client
 from tempest.services.conveyor.conveyor_client import \
     BaseConveyorClient as ConveyorClient
+from tempest.services.sgs.base.base_volume_client import \
+    BaseSGSVolumesClient as SGSVolumesClient
 CONF = config.CONF
 LOG = logging.getLogger(__name__)
 
@@ -215,6 +217,7 @@ class Manager(manager.Manager):
         self._set_volume_clients()
         self._set_object_storage_clients()
         self._set_conveyor_clients()
+        self._set_sgs_clients()
 
         self.baremetal_client = BaremetalClient(
             self.auth_provider,
@@ -615,3 +618,12 @@ class Manager(manager.Manager):
         }
         params.update(self.default_params)
         self.conveyor_client =  ConveyorClient(self.auth_provider,**params)
+
+    def _set_sgs_clients(self):
+        params = {
+            'service': CONF.sgs.catalog_type,
+            'region': CONF.sgs.region or CONF.identity.region,
+            'endpoint_type': CONF.sgs.endpoint_type
+        }
+        params.update(self.default_params)
+        self.sgs_volume_client = SGSVolumesClient(self.auth_provider, **params)
