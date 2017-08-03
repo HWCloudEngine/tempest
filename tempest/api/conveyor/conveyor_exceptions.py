@@ -13,8 +13,7 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-import testtools
-from tempest.exceptions import  TempestException
+from tempest.exceptions import TempestException
 
 
 class ConveyorException(TempestException):
@@ -44,7 +43,6 @@ class ConveyorException(TempestException):
 
     def __str__(self):
         return self._error_string
-
 
 
 class PlanBuildErrorException(TempestException):

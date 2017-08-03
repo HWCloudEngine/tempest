@@ -12,6 +12,7 @@
 #    WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
 #    License for the specific language governing permissions and limitations
 #    under the License.
+
 import time
 import yaml
 import os.path
@@ -69,6 +70,7 @@ class BaseConveyorTest(tempest.test.BaseTestCase):
             cls.volumes_client = cls.os.volumes_client
         else:
             cls.volumes_client = cls.os.volumes_v2_client
+
     @classmethod
     def resource_setup(cls):
         super(BaseConveyorTest, cls).resource_setup()
@@ -78,17 +80,14 @@ class BaseConveyorTest(tempest.test.BaseTestCase):
         cls.clone_servers = []
         cls.clone_volumes = []  
         cls.keypairs = []
-   
 
-       
     @classmethod
     def resource_cleanup(cls):
         super(BaseConveyorTest, cls).resource_cleanup()
         cls.clear_servers()
         cls.clear_volumes()
         cls.clear_keypairs()
-        
-
+        cls.clear_plan()
 
     @classmethod
     def load_template(cls, name, ext='yaml'):
@@ -157,8 +156,17 @@ class BaseConveyorTest(tempest.test.BaseTestCase):
                 LOG.exception('Waiting for deletion of server %s failed'
                               % server['id'])
 
-
-     
+    @classmethod
+    def clear_plan(cls):
+        try:
+            cls.conveyor_client.delete_plan(cls.conveyor_plan['plan_id'])
+        except Exception:
+            pass
+        try:
+            cls.wait_for_plan_deletion(cls.conveyor_client,
+                                       cls.conveyor_plan['plan_id'])
+        except Exception:
+            pass
 
     @classmethod
     def create_server(cls, validatable=False, volume_backed=False, **kwargs):
@@ -192,6 +200,19 @@ class BaseConveyorTest(tempest.test.BaseTestCase):
                 raise exceptions.TimeoutException(message)
 
     @classmethod
+    def wait_for_plan_deletion(self, client, plan_id):
+        """Waits for a plan to reach a given status."""
+        start = int(time.time())
+        while True:
+            time.sleep(client.build_interval)
+            try:
+                client.show_plan(plan_id)['plan']
+            except Exception:
+                return
+            if int(time.time()) - start >= client.build_timeout:
+                raise exceptions.TimeoutException
+
+    @classmethod
     def wait_for_server_deletion(cls, client, plan_id):
         """Waits for plan to reach deletion."""
         start_time = int(time.time())
@@ -205,5 +226,3 @@ class BaseConveyorTest(tempest.test.BaseTestCase):
                 raise exceptions.TimeoutException
     
             time.sleep(client.build_interval)
-
-        
