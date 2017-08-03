@@ -12,18 +12,16 @@
 #    WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
 #    License for the specific language governing permissions and limitations
 #    under the License.
-
+import os.path
 import time
 import yaml
-import os.path
-from oslo_log import log as logging
+
+from tempest.api.conveyor import conveyor_exceptions
 from tempest.common import compute
-from tempest.common.utils import data_utils
 from tempest.common import waiters
 from tempest import config
-from tempest.lib import exceptions as lib_exc
 from tempest import exceptions
-from tempest.api.conveyor import conveyor_exceptions
+from tempest.lib import exceptions as lib_exc
 import tempest.test
 
 from oslo_log import log as logging
@@ -43,7 +41,8 @@ class BaseConveyorTest(tempest.test.BaseTestCase):
         super(BaseConveyorTest, cls).skip_checks()
 
         if not CONF.service_available.conveyor:
-            skip_msg = ("%s skipped as Conveyor is not available" % cls.__name__)
+            skip_msg = \
+                ("%s skipped as Conveyor is not available" % cls.__name__)
             raise cls.skipException(skip_msg)
 
     @classmethod
@@ -62,7 +61,7 @@ class BaseConveyorTest(tempest.test.BaseTestCase):
         cls.floating_ip_pools_client = cls.os.floating_ip_pools_client
         cls.floating_ips_client = cls.os.compute_floating_ips_client
         cls.keypairs_client = cls.os.keypairs_client
-        
+
         cls.availability_zone_client = cls.os.availability_zone_client
         cls.conveyor_client = cls.os.conveyor_client
         cls.orchestration_client = cls.os.orchestration_client
@@ -75,10 +74,10 @@ class BaseConveyorTest(tempest.test.BaseTestCase):
     def resource_setup(cls):
         super(BaseConveyorTest, cls).resource_setup()
         cls.servers = []
-        
+
         cls.volumes = []
         cls.clone_servers = []
-        cls.clone_volumes = []  
+        cls.clone_volumes = []
         cls.keypairs = []
         cls.plans = []
 
@@ -123,7 +122,7 @@ class BaseConveyorTest(tempest.test.BaseTestCase):
                 cls.volumes_client.wait_for_resource_deletion(volume['id'])
             except Exception:
                 pass
-            
+
     @classmethod
     def clear_keypairs(cls):
         for keypair in cls.keypairs:
@@ -131,7 +130,7 @@ class BaseConveyorTest(tempest.test.BaseTestCase):
                 cls.keypairs_client.delete_keypair(keypair)
             except Exception:
                 pass
-            
+
     @classmethod
     def clear_servers(cls):
         servers = []
@@ -187,13 +186,14 @@ class BaseConveyorTest(tempest.test.BaseTestCase):
         body = client.show_plan(plan_id)['plan']
         plan_status = body['plan_status']
         start = int(time.time())
-    
+
         while plan_status != status:
             time.sleep(client.build_interval)
             body = client.show_plan(plan_id)['plan']
             plan_status = body['plan_status']
             if plan_status == 'error':
-                raise conveyor_exceptions.PlanBuildErrorException(plan_id=plan_id)
+                id = plan_id
+                raise conveyor_exceptions.PlanBuildErrorException(plan_id=id)
             if int(time.time()) - start >= client.build_timeout:
                 message = ('Plan %s failed to reach %s status (current %s) '
                            'within the required time (%s s).' %
@@ -223,8 +223,8 @@ class BaseConveyorTest(tempest.test.BaseTestCase):
                 client.show_plan(plan_id)['plan']
             except Exception:
                 return
-    
+
             if int(time.time()) - start_time >= client.build_timeout:
                 raise exceptions.TimeoutException
-    
+
             time.sleep(client.build_interval)

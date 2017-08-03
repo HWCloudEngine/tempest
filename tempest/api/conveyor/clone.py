@@ -12,20 +12,20 @@
 
 from tempest.api.conveyor import base
 
+
 class CloneTest(base.BaseConveyorTest):
-    
+
     def __init__(self):
         pass
-    
+
     @classmethod
     def setup_clients(cls):
         super(CloneTest, cls).setup_clients()
         cls.client = cls.servers_client
 
-
     def tearDown(self):
         self.clear_servers()
         super(CloneTest, self).tearDown()
-    
+
     def start_clone_template(self):
         pass

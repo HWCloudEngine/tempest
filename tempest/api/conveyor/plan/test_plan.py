@@ -15,10 +15,9 @@
 
 import operator
 from tempest.api.conveyor import base
-from tempest import test
-from tempest import config
-from tempest.common.utils import data_utils
 from tempest.common import waiters
+from tempest import config
+from tempest import test
 
 from oslo_log import log as logging
 
@@ -81,10 +80,12 @@ class PlanV1TestJSON(base.BaseConveyorTest):
         super(PlanV1TestJSON, cls).resource_cleanup()
 
     @test.attr(type='conveyor_smoke')
+    @test.idempotent_id('d7f09396-2d66-4b43-a9d1-6843170a86d2')
     def test_create_plan(self):
         self.assertEqual('available', self.plan['plan_status'])
 
     @test.attr(type='conveyor_smoke')
+    @test.idempotent_id('773f8145-8cb8-4845-9c4d-e95c37b62a7b')
     def test_list_plan(self):
         res_plan = self.conveyor_client.list_plans(detail=True)
         self.assertEqual(1, len(res_plan['plans']))
@@ -92,6 +93,7 @@ class PlanV1TestJSON(base.BaseConveyorTest):
                          res_plan['plans'][0]['plan_id'])
 
     @test.attr(type='conveyor_smoke')
+    @test.idempotent_id('45db29a4-d5e0-499d-ae18-45541184f62a')
     def test_show_plan(self):
         res_plan = self.conveyor_client.show_plan(
             self.plan['plan_id'])['plan']
@@ -101,6 +103,7 @@ class PlanV1TestJSON(base.BaseConveyorTest):
         self.assertEqual('available', res_plan['plan_status'])
 
     @test.attr(type='conveyor_smoke')
+    @test.idempotent_id('0484faad-cdf8-4643-a56a-7f3b5eed40a8')
     def test_delete_plan(self):
         kwargs = {'plan_type': 'clone',
                   'clone_obj': [{'obj_type': 'OS::Cinder::Volume',

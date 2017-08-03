@@ -19,9 +19,7 @@ from six.moves.urllib import parse as urllib
 
 from tempest.lib.common import rest_client
 
-from tempest.lib import exceptions as lib_exc
 from tempest import config
-
 CONF = config.CONF
 
 
@@ -74,8 +72,6 @@ class BaseConveyorClient(rest_client.RestClient):
         return rest_client.ResponseBody(resp, body)
 
     def create_plan(self, **kwargs):
-        """Creates a new Plan.
-        """
         post_body = json.dumps({'plan': kwargs})
         resp, body = self.post('plans', post_body)
         body = json.loads(body)
@@ -113,14 +109,6 @@ class BaseConveyorClient(rest_client.RestClient):
         self.expected_success(200, resp.status)
         return rest_client.ResponseBody(resp, body)
 
-    def create_plan_by_template(self, template):
-        post_body = json.dumps({"plan": {'template': template}})
-        resp, body = self.post('plans/create_plan_by_template',
-                               post_body)
-        self.expected_success(200, resp.status)
-        body = json.loads(body)
-        return rest_client.ResponseBody(resp, body)
-
     def show_resource(self, res_id, **kwargs):
         post_body = json.dumps({'get_resource_detail': kwargs})
         resp, body = self.post('resources/%s/action' % res_id,
@@ -129,28 +117,31 @@ class BaseConveyorClient(rest_client.RestClient):
         body = json.loads(body)
         return rest_client.ResponseBody(resp, body)
 
-    def show_resource_of_plan(self, res_id, **kwargs):
-        post_body = json.dumps({'get_resource_detail_from_plan': kwargs})
-        resp, body = self.post('resources/%s/action' % res_id,
+    def list_clone_resources_attribute(self, plan_id, attribute):
+        params = dict(attribute_name=attribute,
+                      plan_id=plan_id)
+        post_body = json.dumps({'list-clone_resources_attribute': params})
+        resp, body = self.post('resources/%s/action' % plan_id,
                                post_body)
         self.expected_success(202, resp.status)
         body = json.loads(body)
         return rest_client.ResponseBody(resp, body)
 
-    def export_clone_template(self, plan_id, **kwargs):
-        """export a template of a Plan."""
-        post_body = json.dumps({'export_clone_template':
-                                    {'update_resources':
-                                         kwargs.get('update_resources')}})
-        resp, body = self.post('clones/%s/action' % plan_id,
+    def build_resources_topo(self, plan_id, az_map):
+        params = dict(availability_zone_map=az_map,
+                      plan_id=plan_id)
+        post_body = json.dumps({'build-resources_topo': params})
+        resp, body = self.post('resources/%s/action' % plan_id,
                                post_body)
+        self.expected_success(202, resp.status)
+        body = json.loads(body)
         return rest_client.ResponseBody(resp, body)
 
     def clone(self, plan_id, **kwargs):
         """clone a Plan."""
         post_body = json.dumps({'clone': {'update_resources':
-                                              kwargs.get('update_resources'),
-                                          'destination': kwargs.get('destination')}})
+                                          kwargs.get('update_resources'),
+                                'destination': kwargs.get('destination')}})
         resp, body = self.post('clones/%s/action' % plan_id,
                                post_body)
         return rest_client.ResponseBody(resp, body)
@@ -158,7 +149,7 @@ class BaseConveyorClient(rest_client.RestClient):
     def migrate(self, plan_id, **kwargs):
         """migrate a Plan."""
         post_body = json.dumps({'migrate': {'destination':
-                                                kwargs.get('destination')}})
+                                            kwargs.get('destination')}})
         resp, body = self.post('migrates/%s/action' % plan_id,
                                post_body)
         return rest_client.ResponseBody(resp, body)

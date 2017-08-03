@@ -15,10 +15,10 @@
 
 import operator
 from tempest.api.conveyor import base
-from tempest import test
-from tempest import config
 from tempest.common.utils import data_utils
 from tempest.common import waiters
+from tempest import config
+from tempest import test
 
 from oslo_log import log as logging
 
@@ -97,41 +97,51 @@ class CloneV1TestJSON(base.BaseConveyorTest):
         super(CloneV1TestJSON, cls).resource_cleanup()
 
     @test.attr(type='conveyor_smoke')
+    @test.idempotent_id('d17bda3c-b39e-4d5c-91d3-8ae8becf0d9f')
     def test_clone_with_server(self):
         pass
 
     @test.attr(type='conveyor_smoke')
+    @test.idempotent_id('60cc6797-43a9-4275-8549-5ba853a48800')
     def test_clone_with_server_and_copy_data(self):
         pass
 
     @test.attr(type='conveyor_smoke')
+    @test.idempotent_id('7b44c124-073b-4917-9816-be754bfb5cbc')
     def test_clone_with_server_and_update_net(self):
         pass
 
     @test.attr(type='conveyor_smoke')
+    @test.idempotent_id('9b2b4557-aa05-4db3-a56c-39caea865cb2')
     def test_clone_with_server_and_update_security(self):
         pass
 
     @test.attr(type='conveyor_smoke')
+    @test.idempotent_id('4bbb3dd1-144c-40de-8c91-f5f2c59821b8')
     def test_clone_with_server_and_update_port(self):
         pass
 
     @test.attr(type='conveyor_smoke')
+    @test.idempotent_id('ce2fd46f-1a6e-4b16-a749-d64c820a04ae')
     def test_clone_with_server_and_update_userdata(self):
         pass
 
     @test.attr(type='conveyor_smoke')
+    @test.idempotent_id('8a452d3a-06e5-4448-a51b-15ff330a77e8')
     def test_clone_with_server_and_replace_net(self):
         pass
 
     @test.attr(type='conveyor_smoke')
+    @test.idempotent_id('e44d5a36-b349-4380-974a-725f764f63fd')
     def test_adding_clone_by_adding_server(self):
         pass
 
     @test.attr(type='conveyor_smoke')
+    @test.idempotent_id('04b7bf12-5de0-46b5-af8d-22104833c256')
     def test_adding_clone_by_adding_volume(self):
         pass
 
     @test.attr(type='conveyor_smoke')
+    @test.idempotent_id('141057cf-5b8c-44e1-b4d6-07bf0f76af47')
     def test_adding_clone_by_adding_port(self):
         pass
