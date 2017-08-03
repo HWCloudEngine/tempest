@@ -26,7 +26,7 @@ CONF = config.CONF
 LOG = logging.getLogger(__name__)
 
 
-class PlanV1TestJSON(base.BaseConveyorTest):
+class CloneV1TestJSON(base.BaseConveyorTest):
     def assertResourceIn(self, fetched_res, res_list, fields=None):
         if not fields:
             self.assertIn(fetched_res, res_list)
@@ -46,15 +46,23 @@ class PlanV1TestJSON(base.BaseConveyorTest):
 
     @classmethod
     def setup_clients(cls):
-        super(PlanV1TestJSON, cls).setup_clients()
+        super(CloneV1TestJSON, cls).setup_clients()
         cls.client = cls.conveyor_client
 
     @classmethod
     def resource_setup(cls):
-        super(PlanV1TestJSON, cls).resource_setup()
+        super(CloneV1TestJSON, cls).resource_setup()
         cls.volume_size = CONF.conveyor.volume_size
         cls.availability_zone_ref = CONF.conveyor.availability_zone
         cls.volume_type_ref = CONF.conveyor.volume_type
+        cls.net_ref = CONF.conveyor.origin_net_ref
+        cls.image_ref = CONF.conveyor.image_ref
+        cls.flavor_ref = CONF.conveyor.flavor_ref
+        cls.meta = {'hello': 'world'}
+        cls.name = data_utils.rand_name('server')
+        cls.password = data_utils.rand_password()
+        networks = [{'uuid': cls.net_ref}]
+
         cls.volume = cls.volumes_client.create_volume(
             size=cls.volume_size,
             display_name='volume_resource',
@@ -64,50 +72,66 @@ class PlanV1TestJSON(base.BaseConveyorTest):
         waiters.wait_for_volume_status(cls.volumes_client,
                                        cls.volume['id'], 'available')
 
+        server_initial = cls.create_server(
+            networks=networks,
+            wait_until='ACTIVE',
+            name="server_resource",
+            metadata=cls.meta,
+            adminPass=cls.password,
+            availability_zone=cls.availability_zone_ref)
+        cls.server = (
+            cls.servers_client.show_server(server_initial['id'])['server'])
+        cls.servers.append(cls.server)
+
         kwargs = {'plan_type': 'clone',
                   'clone_obj': [{'obj_type': 'OS::Cinder::Volume',
                                  'obj_id': cls.volume['id']}],
                   'plan_name': 'test-create-plan'}
-        conveyor_plan = cls.conveyor_client.create_plan(**kwargs)['plan']
+        cls.conveyor_plan = cls.conveyor_client.create_plan(**kwargs)['plan']
         cls.wait_for_plan_status(cls.conveyor_client,
-                                 conveyor_plan['plan_id'],
+                                 cls.conveyor_plan['plan_id'],
                                  'available')
-        cls.plan = (cls.conveyor_client.show_plan(
-            conveyor_plan['plan_id'])['plan'])
-        cls.plans.append(cls.plan)
 
     @classmethod
     def resource_cleanup(cls):
-        super(PlanV1TestJSON, cls).resource_cleanup()
+        super(CloneV1TestJSON, cls).resource_cleanup()
 
     @test.attr(type='conveyor_smoke')
-    def test_create_plan(self):
-        self.assertEqual('available', self.plan['plan_status'])
+    def test_clone_with_server(self):
+        pass
 
     @test.attr(type='conveyor_smoke')
-    def test_list_plan(self):
-        res_plan = self.conveyor_client.list_plans(detail=True)
-        self.assertEqual(1, len(res_plan['plans']))
-        self.assertEqual(self.plan['plan_id'],
-                         res_plan['plans'][0]['plan_id'])
+    def test_clone_with_server_and_copy_data(self):
+        pass
 
     @test.attr(type='conveyor_smoke')
-    def test_show_plan(self):
-        res_plan = self.conveyor_client.show_plan(
-            self.plan['plan_id'])['plan']
-        self.assertEqual(self.plan['plan_id'],
-                         res_plan['plan_id'])
-        self.assertEqual('test-create-plan', res_plan['plan_name'])
-        self.assertEqual('available', res_plan['plan_status'])
+    def test_clone_with_server_and_update_net(self):
+        pass
 
     @test.attr(type='conveyor_smoke')
-    def test_delete_plan(self):
-        kwargs = {'plan_type': 'clone',
-                  'clone_obj': [{'obj_type': 'OS::Cinder::Volume',
-                                 'obj_id': self.volume['id']}],
-                  'plan_name': 'test-delete-plan'}
-        res_plan = self.conveyor_client.create_plan(**kwargs)['plan']
-        self.wait_for_plan_status(self.conveyor_client, res_plan['plan_id'],
-                                  'available')
-        self.conveyor_client.delete_plan(res_plan['plan_id'])
-        self.wait_for_plan_deletion(self.conveyor_client, res_plan['plan_id'])
+    def test_clone_with_server_and_update_security(self):
+        pass
+
+    @test.attr(type='conveyor_smoke')
+    def test_clone_with_server_and_update_port(self):
+        pass
+
+    @test.attr(type='conveyor_smoke')
+    def test_clone_with_server_and_update_userdata(self):
+        pass
+
+    @test.attr(type='conveyor_smoke')
+    def test_clone_with_server_and_replace_net(self):
+        pass
+
+    @test.attr(type='conveyor_smoke')
+    def test_adding_clone_by_adding_server(self):
+        pass
+
+    @test.attr(type='conveyor_smoke')
+    def test_adding_clone_by_adding_volume(self):
+        pass
+
+    @test.attr(type='conveyor_smoke')
+    def test_adding_clone_by_adding_port(self):
+        pass

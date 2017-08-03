@@ -80,6 +80,7 @@ class BaseConveyorTest(tempest.test.BaseTestCase):
         cls.clone_servers = []
         cls.clone_volumes = []  
         cls.keypairs = []
+        cls.plans = []
 
     @classmethod
     def resource_cleanup(cls):
@@ -158,15 +159,16 @@ class BaseConveyorTest(tempest.test.BaseTestCase):
 
     @classmethod
     def clear_plan(cls):
-        try:
-            cls.conveyor_client.delete_plan(cls.conveyor_plan['plan_id'])
-        except Exception:
-            pass
-        try:
-            cls.wait_for_plan_deletion(cls.conveyor_client,
-                                       cls.conveyor_plan['plan_id'])
-        except Exception:
-            pass
+        for pl in cls.plans:
+            try:
+                cls.conveyor_client.delete_plan(pl['plan_id'])
+            except Exception:
+                pass
+            try:
+                cls.wait_for_plan_deletion(cls.conveyor_client,
+                                           pl['plan_id'])
+            except Exception:
+                pass
 
     @classmethod
     def create_server(cls, validatable=False, volume_backed=False, **kwargs):
