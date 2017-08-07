@@ -13,30 +13,27 @@
 from oslo_serialization import jsonutils as json
 import six
 from six.moves.urllib import parse as urllib
-
+from tempest.common.utils import data_utils
 from tempest.lib.common import rest_client
-from tempest.lib import exceptions as lib_exc
 from tempest import config
-
 CONF = config.CONF
 
 
-class BaseSGSVolumesClient(rest_client.RestClient):
+class BaseSGSSnapshotsClient(rest_client.RestClient):
     """Base client class to send SGS API requests"""
 
-    exp_resp = [200, 202]
+    create_resp = 200
 
-    def __init__(self, auth_provider, service, region, **kwargs):
+    def __init__(self, auth_provider,service, region, **kwargs):
         if 'build_timeout' not in kwargs:
             kwargs['build_timeout'] = CONF.sgs.build_timeout
         if 'build_interval' not in kwargs:
             kwargs['build_interval'] = CONF.sgs.build_interval
-        super(BaseSGSVolumesClient, self).__init__(
+        super(BaseSGSSnapshotsClient, self).__init__(
             auth_provider, service, region, **kwargs)
 
     def _prepare_params(self, params):
         """Prepares params for use in get or _ext_get methods.
-
         If params is a string it will be left as it is, but if it's not it will
         be urlencoded.
         """
@@ -44,12 +41,12 @@ class BaseSGSVolumesClient(rest_client.RestClient):
             return params
         return urllib.urlencode(params)
 
-    def list_volumes(self, detail=False, params=None):
-        """List all the volumes created.
+    def list_snapshots(self, detail=False, params=None):
+        """List all the snapshots created.
 
         Params can be a string (must be urlencoded) or a dictionary.
         """
-        url = 'volumes'
+        url = 'snapshots'
         if detail:
             url += '/detail'
         if params:
@@ -57,60 +54,47 @@ class BaseSGSVolumesClient(rest_client.RestClient):
 
         resp, body = self.get(url)
         body = json.loads(body)
-        self.expected_success(self.exp_resp, resp.status)
+        self.expected_success(200, resp.status)
         return rest_client.ResponseBody(resp, body)
 
-    def show_volume(self, volume_id):
-        """Returns the details of a single volume."""
-        url = "volumes/%s" % str(volume_id)
+    def create_snapshot(self, volume_id, **kwargs):
+        kwargs['volume_id'] = volume_id
+        if 'name' not in kwargs:
+            kwargs['name'] = data_utils.rand_name("tempest-snapshot")
+        action_body = {"create": kwargs}
+        url = "/snapshots"
+        resp, body = self.post(url, json.dumps(action_body))
+        body = json.loads(body)
+        self.expected_success(200, resp.status)
+        return rest_client.ResponseBody(resp, body)
+
+    def delete_snapshot(self, snapshot_id):
+        action_body = {"delete": None}
+        url = "snapshots/%s/action" % str(snapshot_id)
+        resp, body = self.post(url, json.dumps(action_body))
+        body = json.loads(body)
+        self.expected_success(200, resp.status)
+        return rest_client.ResponseBody(resp, body)
+
+    def rollback_snapshot(self, snapshot_id):
+        action_body = {"rollback": None}
+        url = "snapshots/%s/action" % str(snapshot_id)
+        resp, body = self.post(url, json.dumps(action_body))
+        body = json.loads(body)
+        self.expected_success(200, resp.status)
+        return rest_client.ResponseBody(resp, body)
+
+    def show_snapshot(self, snapshot_id):
+        url = "snapshots/%s" % str(snapshot_id)
         resp, body = self.get(url)
         body = json.loads(body)
-        self.expected_success(self.exp_resp, resp.status)
+        self.expected_success(200, resp.status)
         return rest_client.ResponseBody(resp, body)
 
-    def enable_volume(self, volume_id, **kwargs):
-        """Enable volume"""
-        action_body = {"enable": kwargs}
-        url = "volumes/%s/action" % str(volume_id)
-        resp, body = self.post(url, json.dumps(action_body))
+    def update_snapshot(self, snapshot_id, **kwargs):
+        action_body = {"snapshot": kwargs}
+        url = "snapshots/%s" % str(snapshot_id)
+        resp, body = self.put(url, json.dumps(action_body))
         body = json.loads(body)
-        self.expected_success(self.exp_resp, resp.status)
+        self.expected_success(200, resp.status)
         return rest_client.ResponseBody(resp, body)
-
-    def disable_volume(self, volume_id):
-        """Disable volume"""
-        action_body = {"disable": None}
-        url = "volumes/%s/action" % str(volume_id)
-        resp, body = self.post(url, json.dumps(action_body))
-        body = json.loads(body)
-        self.expected_success(self.exp_resp, resp.status)
-        return rest_client.ResponseBody(resp, body)
-
-    def attach_volume(self, instance_uuid, volume_id, mode='rw'):
-        """Attach volume"""
-        action_body = {"attach": {
-            'instance_uuid': instance_uuid,
-            'mode': mode
-        }}
-        url = "volumes/%s/action" % str(volume_id)
-        resp, body = self.post(url, json.dumps(action_body))
-        body = json.loads(body)
-        self.expected_success(self.exp_resp, resp.status)
-        return rest_client.ResponseBody(resp, body)
-
-    def detach_volume(self, instance_uuid, volume_id):
-        """Detach volume"""
-        action_body = {'detach': {
-            'instance_uuid': instance_uuid
-        }}
-        url = "volumes/%s/action" % str(volume_id)
-        resp, body = self.post(url, json.dumps(action_body))
-        self.expected_success(202, resp.status)
-        return rest_client.ResponseBody(resp, body)
-
-    def is_resource_deleted(self, id):
-        try:
-            self.show_volume(id)
-        except lib_exc.NotFound:
-            return True
-        return False

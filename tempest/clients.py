@@ -181,6 +181,12 @@ from tempest.services.conveyor.conveyor_client import \
     BaseConveyorClient as ConveyorClient
 from tempest.services.sgs.base.base_volume_client import \
     BaseSGSVolumesClient as SGSVolumesClient
+from tempest.services.sgs.base.base_replication_client import \
+    BaseSGSReplicationsClient as SGSReplicationsClient
+from tempest.services.sgs.base.base_backup_client import \
+    BaseSGSBackupsClient as SGSBackupsClient
+from tempest.services.sgs.base.base_snapshot_client import \
+    BaseSGSSnapshotsClient as SGSSnapshotsClient
 CONF = config.CONF
 LOG = logging.getLogger(__name__)
 
@@ -627,3 +633,6 @@ class Manager(manager.Manager):
         }
         params.update(self.default_params)
         self.sgs_volume_client = SGSVolumesClient(self.auth_provider, **params)
+        self.sgs_replication_client = SGSReplicationsClient(self.auth_provider, **params)
+        self.sgs_backup_client = SGSBackupsClient(self.auth_provider, **params)
+        self.sgs_snapshot_client = SGSSnapshotsClient(self.auth_provider, **params)
