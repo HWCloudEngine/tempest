@@ -68,9 +68,6 @@ class PlanV1TestJSON(base.BaseConveyorTest):
                                  'obj_id': cls.volume['id']}],
                   'plan_name': 'test-create-plan'}
         conveyor_plan = cls.conveyor_client.create_plan(**kwargs)['plan']
-        cls.wait_for_plan_status(cls.conveyor_client,
-                                 conveyor_plan['plan_id'],
-                                 'available')
         cls.plan = (cls.conveyor_client.show_plan(
             conveyor_plan['plan_id'])['plan'])
         cls.plans.append(cls.plan)
@@ -110,7 +107,5 @@ class PlanV1TestJSON(base.BaseConveyorTest):
                                  'obj_id': self.volume['id']}],
                   'plan_name': 'test-delete-plan'}
         res_plan = self.conveyor_client.create_plan(**kwargs)['plan']
-        self.wait_for_plan_status(self.conveyor_client, res_plan['plan_id'],
-                                  'available')
         self.conveyor_client.delete_plan(res_plan['plan_id'])
         self.wait_for_plan_deletion(self.conveyor_client, res_plan['plan_id'])

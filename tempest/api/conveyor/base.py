@@ -69,6 +69,7 @@ class BaseConveyorTest(tempest.test.BaseTestCase):
             cls.volumes_client = cls.os.volumes_client
         else:
             cls.volumes_client = cls.os.volumes_v2_client
+        cls.interfaces_client = cls.os.interfaces_client
 
     @classmethod
     def resource_setup(cls):
@@ -181,19 +182,18 @@ class BaseConveyorTest(tempest.test.BaseTestCase):
         return body
 
     @classmethod
-    def wait_for_plan_status(self, client, plan_id, status):
+    def wait_for_plan_status(self, client, plan_id, status_key, status):
         """Waits for a plan to reach a given status."""
         body = client.show_plan(plan_id)['plan']
-        plan_status = body['plan_status']
+        plan_status = body[status_key]
         start = int(time.time())
 
-        while plan_status != status:
+        while plan_status not in status:
             time.sleep(client.build_interval)
             body = client.show_plan(plan_id)['plan']
-            plan_status = body['plan_status']
+            plan_status = body[status_key]
             if plan_status == 'error':
-                id = plan_id
-                raise conveyor_exceptions.PlanBuildErrorException(plan_id=id)
+                raise conveyor_exceptions.PlanBuildErrorException(plan_id=plan_id)
             if int(time.time()) - start >= client.build_timeout:
                 message = ('Plan %s failed to reach %s status (current %s) '
                            'within the required time (%s s).' %

@@ -1326,7 +1326,13 @@ ConveyorGroup = [
                help='volume type of volume'),
     cfg.StrOpt('floating_ip_pool_ref',
                default='',
-               help="The ip pool to create floating ip."),  
+               help="The ip pool to create floating ip."),
+    cfg.StrOpt('aws_region',
+               default='',
+               help="the region of AWS"),
+    cfg.StrOpt('hws_region',
+               default='',
+               help="the region of HWS"),
 ]
 
 sgs_group = cfg.OptGroup(name='sgs', title='SG-Service Options')

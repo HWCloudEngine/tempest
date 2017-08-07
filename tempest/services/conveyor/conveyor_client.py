@@ -137,12 +137,18 @@ class BaseConveyorClient(rest_client.RestClient):
         body = json.loads(body)
         return rest_client.ResponseBody(resp, body)
 
-    def clone(self, plan_id, **kwargs):
+    def delete_cloned_resource(self, plan_id):
+        params = dict(plan_id=plan_id)
+        post_body = json.dumps({'delete-cloned_resource': params})
+        resp, body = self.post('resources/%s/action' % plan_id,
+                               post_body)
+        self.expected_success(200, resp.status)
+        return rest_client.ResponseBody(resp, body)
+
+    def clone(self, **kwargs):
         """clone a Plan."""
-        post_body = json.dumps({'clone': {'update_resources':
-                                          kwargs.get('update_resources'),
-                                'destination': kwargs.get('destination')}})
-        resp, body = self.post('clones/%s/action' % plan_id,
+        post_body = json.dumps({'clone': kwargs})
+        resp, body = self.post('clones/%s/action' % kwargs['plan_id'],
                                post_body)
         return rest_client.ResponseBody(resp, body)
 
