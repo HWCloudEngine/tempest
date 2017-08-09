@@ -142,7 +142,7 @@ class BaseConveyorClient(rest_client.RestClient):
         post_body = json.dumps({'delete-cloned_resource': params})
         resp, body = self.post('resources/%s/action' % plan_id,
                                post_body)
-        self.expected_success(200, resp.status)
+        self.expected_success(202, resp.status)
         return rest_client.ResponseBody(resp, body)
 
     def clone(self, **kwargs):

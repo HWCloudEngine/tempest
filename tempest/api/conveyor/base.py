@@ -61,6 +61,7 @@ class BaseConveyorTest(tempest.test.BaseTestCase):
         cls.floating_ip_pools_client = cls.os.floating_ip_pools_client
         cls.floating_ips_client = cls.os.compute_floating_ips_client
         cls.keypairs_client = cls.os.keypairs_client
+        cls.ports_client = cls.os.ports_client
 
         cls.availability_zone_client = cls.os.availability_zone_client
         cls.conveyor_client = cls.os.conveyor_client
@@ -193,7 +194,8 @@ class BaseConveyorTest(tempest.test.BaseTestCase):
             body = client.show_plan(plan_id)['plan']
             plan_status = body[status_key]
             if plan_status == 'error':
-                raise conveyor_exceptions.PlanBuildErrorException(plan_id=plan_id)
+                p_d = plan_id
+                raise conveyor_exceptions.PlanBuildErrorException(plan_id=p_d)
             if int(time.time()) - start >= client.build_timeout:
                 message = ('Plan %s failed to reach %s status (current %s) '
                            'within the required time (%s s).' %

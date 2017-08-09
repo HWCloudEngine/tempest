@@ -83,7 +83,8 @@ class CloneV1TestJSON(base.BaseConveyorTest):
             metadata=self.meta,
             adminPass=self.password,
             availability_zone=self.availability_zone_ref)
-        server = self.servers_client.show_server(server_initial['id'])['server']
+        server = \
+            self.servers_client.show_server(server_initial['id'])['server']
         self.addCleanup(self.clear_temp_servers, [server])
 
         kwargs = {'plan_type': 'clone',
@@ -127,11 +128,6 @@ class CloneV1TestJSON(base.BaseConveyorTest):
                                       plan_id,
                                       ['finished'])
 
-    def _clean_plans(self, plan_ids):
-        LOG.info('Clean create plan: %s', plan_ids)
-        for plan_id in plan_ids:
-            self.client.delete_plan(plan_id)
-
     @test.attr(type='conveyor_smoke')
     def test_clone_server_aws_private(self):
         srv_name = uuid.uuid4()
@@ -142,7 +138,8 @@ class CloneV1TestJSON(base.BaseConveyorTest):
             metadata=self.meta,
             adminPass=self.password,
             availability_zone=self.availability_zone_ref)
-        server = self.servers_client.show_server(server_initial['id'])['server']
+        server = \
+            self.servers_client.show_server(server_initial['id'])['server']
         self.addCleanup(self.clear_temp_servers, [server])
 
         kwargs = {'plan_type': 'clone',
@@ -188,7 +185,8 @@ class CloneV1TestJSON(base.BaseConveyorTest):
             metadata=self.meta,
             adminPass=self.password,
             availability_zone=self.availability_zone_ref)
-        server = self.servers_client.show_server(server_initial['id'])['server']
+        server = \
+            self.servers_client.show_server(server_initial['id'])['server']
         self.addCleanup(self.clear_temp_servers, [server])
 
         kwargs = {'plan_type': 'clone',
@@ -259,7 +257,8 @@ class CloneV1TestJSON(base.BaseConveyorTest):
             metadata=self.meta,
             adminPass=self.password,
             availability_zone=self.availability_zone_ref)
-        server = self.servers_client.show_server(server_initial['id'])['server']
+        server = \
+            self.servers_client.show_server(server_initial['id'])['server']
         self.addCleanup(self.clear_temp_servers, [server])
         interfaces = self.interfaces_client.list_interfaces(
             server_initial['id'])['interfaceAttachments'][0]
@@ -322,20 +321,480 @@ class CloneV1TestJSON(base.BaseConveyorTest):
                                   ['finished'])
 
     @test.attr(type='conveyor_smoke')
-    def test_clone_server_adding_volume_private_aws(self):
-        pass
+    def test_clone_server_adding_volume_private_to_aws(self):
+        # 1. create vm
+        networks = [{'uuid': self.net_ref}]
+        server_name = 'server-%s' % uuid.uuid4()
+        server = self.create_server(
+            networks=networks,
+            wait_until='ACTIVE',
+            name=server_name,
+            availability_zone=self.availability_zone_ref,
+            image_id=self.image_ref,
+            flavor=self.flavor_ref)
+        # 1.1 add server to cleanup after finished this test
+        # delete this server
+        server_info = \
+            self.servers_client.show_server(server['id'])['server']
+        self.addCleanup(self.clear_temp_servers, [server_info])
+
+        # 2. create clone plan of this vm
+        kwargs = {'plan_type': 'clone',
+                  'clone_obj': [{'obj_type': 'OS::Nova::Server',
+                                 'obj_id': server['id']}],
+                  'plan_name': 'test-server-plan'}
+        plan = self.conveyor_client.create_plan(**kwargs)
+        # 2.1 add plan to cleanup after finished this test
+        # delete this plan
+        plan_id = plan.get('plan', {}).get('plan_id', '')
+        plan_ids = [plan_id]
+        self.addCleanup(self._clean_plans, plan_ids)
+
+        self.wait_for_plan_status(self.conveyor_client,
+                                  plan_id,
+                                  'plan_status',
+                                  ['available'])
+        # 3. execute plan
+        az_map = {}
+        src_az = self.availability_zone_ref
+        des_az = CONF.conveyor.aws_region
+        az_map[src_az] = des_az
+        clone_resources = []
+        server_res = {'id': server['id'], 'type': 'OS::Nova::Server'}
+        net_res = {'id': self.net_ref, 'type': 'OS::Neutron::Net'}
+        flavor_res = {'id': self.flavor_ref, 'type': 'OS::Nova::Flavor'}
+        clone_resources.append(server_res)
+        clone_resources.append(net_res)
+        clone_resources.append(flavor_res)
+        kargs = {}
+        kargs['plan_id'] = plan_id
+        kargs['clone_resources'] = clone_resources
+        kargs['availability_zone_map'] = az_map
+        kargs['copy_data'] = False
+
+        self.conveyor_client.clone(**kargs)
+        self.wait_for_plan_status(self.conveyor_client,
+                                  plan_id,
+                                  'plan_status',
+                                  ['finished'])
+
+        params = {}
+        params['name'] = server_name
+        body = self.servers_client.list_servers(**params)
+        vm_list = body['servers']
+        clone_vm = [vm for vm in vm_list if vm['id'] != server['id']][0]
+        clone_vm_info = \
+            self.servers_client.show_server(clone_vm['id'])['server']
+        first_vm_attachs = \
+            clone_vm_info.get('os-extended-volumes:volumes_attached', [])
+        # 4. add volume to vm
+        volume = self.volumes_client.create_volume(
+            size=self.volume_size,
+            display_name='volume_resource',
+            availability_zone=self.availability_zone_ref)['volume']
+
+        # 4.1 add volume to cleanup after finished this test
+        # delete this volume
+        volume_ids = [volume['id']]
+        self.addCleanup(self._clean_volumes, volume_ids)
+        # 4.2 attach volume to vm
+        waiters.wait_for_volume_status(self.volumes_client,
+                                       volume['id'], 'available')
+
+        self.servers_client.attach_volume(
+            server['id'],
+            volumeId=volume['id'])['volumeAttachment']
+        waiters.wait_for_volume_status(self.volumes_client,
+                                       volume['id'], 'in-use')
+        # 5. query topo for new resources
+        topo = \
+            self.conveyor_client.build_resources_topo(plan_id,
+                                                      az_map)['topo']
+        new_res, new_links = self._get_increment_resources(topo)
+        LOG.info('Private to aws increment resource:%(res)s,links: %(l)s',
+                 {'res': new_res, 'l': new_links})
+        # 6. execute plan
+        kargs['clone_resources'] = new_res
+        kargs['clone_links'] = new_links
+        self.conveyor_client.clone(**kargs)
+        self.wait_for_plan_status(self.conveyor_client,
+                                  plan_id,
+                                  'plan_status',
+                                  ['cloning'])
+        self.wait_for_plan_status(self.conveyor_client,
+                                  plan_id,
+                                  'plan_status',
+                                  ['finished'])
+        # 7. check result
+        # 7.1 plan status is finished
+        plan_detail = self.conveyor_client.show_plan(plan_id)['plan']
+        self.assertEqual('finished', plan_detail['plan_status'])
+        # 7.2 has two vm as name is server_name
+        self.assertEqual(2, len(vm_list))
+        # 7.3 cloned vm increment one volume
+        clone_vm_info = \
+            self.servers_client.show_server(clone_vm['id'])['server']
+        vm_attachs = \
+            clone_vm_info.get('os-extended-volumes:volumes_attached', [])
+        add_vol_num = len(vm_attachs) - len(first_vm_attachs)
+        self.assertEqual(1, add_vol_num)
+
+        self.client.delete_cloned_resource(plan_id)
+        self.wait_for_plan_status(self.conveyor_client,
+                                  plan_id,
+                                  'task_status',
+                                  ['finished'])
 
     @test.attr(type='conveyor_smoke')
-    def test_clone_server_adding_volume_aws_private(self):
-        pass
+    def test_clone_server_adding_volume_aws_to_private(self):
+        # 1. create vm
+        networks = [{'uuid': self.net_ref}]
+        server_name = 'server-%s' % uuid.uuid4()
+        server = self.create_server(
+            networks=networks,
+            wait_until='ACTIVE',
+            name=server_name,
+            availability_zone=CONF.conveyor.aws_region,
+            image_id=self.image_ref,
+            flavor=self.flavor_ref)
+        # 1.1 add server to cleanup after finished this test
+        # delete this server
+        server_info = \
+            self.servers_client.show_server(server['id'])['server']
+        self.addCleanup(self.clear_temp_servers, [server_info])
+
+        # 2. create clone plan of this vm
+        kwargs = {'plan_type': 'clone',
+                  'clone_obj': [{'obj_type': 'OS::Nova::Server',
+                                 'obj_id': server['id']}],
+                  'plan_name': 'test-server-plan'}
+        plan = self.conveyor_client.create_plan(**kwargs)
+        # 2.1 add plan to cleanup after finished this test
+        # delete this plan
+        plan_id = plan.get('plan', {}).get('plan_id', '')
+        plan_ids = [plan_id]
+        self.addCleanup(self._clean_plans, plan_ids)
+
+        self.wait_for_plan_status(self.conveyor_client,
+                                  plan_id,
+                                  'plan_status',
+                                  ['available'])
+        # 3. execute plan
+        az_map = {}
+        src_az = CONF.conveyor.aws_region
+        des_az = self.availability_zone_ref
+        az_map[src_az] = des_az
+        clone_resources = []
+        server_res = {'id': server['id'], 'type': 'OS::Nova::Server'}
+        net_res = {'id': self.net_ref, 'type': 'OS::Neutron::Net'}
+        flavor_res = {'id': self.flavor_ref, 'type': 'OS::Nova::Flavor'}
+        clone_resources.append(server_res)
+        clone_resources.append(net_res)
+        clone_resources.append(flavor_res)
+        kargs = {}
+        kargs['plan_id'] = plan_id
+        kargs['clone_resources'] = clone_resources
+        kargs['availability_zone_map'] = az_map
+        kargs['copy_data'] = False
+
+        self.conveyor_client.clone(**kargs)
+        self.wait_for_plan_status(self.conveyor_client,
+                                  plan_id,
+                                  'plan_status',
+                                  ['finished'])
+
+        params = {}
+        params['name'] = server_name
+        body = self.servers_client.list_servers(**params)
+        vm_list = body['servers']
+        clone_vm = [vm for vm in vm_list if vm['id'] != server['id']][0]
+        clone_vm_info = \
+            self.servers_client.show_server(clone_vm['id'])['server']
+        first_vm_attachs = \
+            clone_vm_info.get('os-extended-volumes:volumes_attached', [])
+        # 4. add volume to vm
+        volume = self.volumes_client.create_volume(
+            size=self.volume_size,
+            display_name='volume_resource',
+            availability_zone=CONF.conveyor.aws_region)['volume']
+
+        # 4.1 add volume to cleanup after finished this test
+        # delete this volume
+        volume_ids = [volume['id']]
+        self.addCleanup(self._clean_volumes, volume_ids)
+        # 4.2 attach volume to vm
+        waiters.wait_for_volume_status(self.volumes_client,
+                                       volume['id'], 'available')
+
+        self.servers_client.attach_volume(
+            server['id'],
+            volumeId=volume['id'])['volumeAttachment']
+        waiters.wait_for_volume_status(self.volumes_client,
+                                       volume['id'], 'in-use')
+        # 5. query topo for new resources
+        topo = \
+            self.conveyor_client.build_resources_topo(plan_id,
+                                                      az_map)['topo']
+        new_res, new_links = self._get_increment_resources(topo)
+        LOG.info('Private to aws increment resource:%(res)s,links: %(l)s',
+                 {'res': new_res, 'l': new_links})
+        # 6. execute plan
+        kargs['clone_resources'] = new_res
+        kargs['clone_links'] = new_links
+        self.conveyor_client.clone(**kargs)
+        self.wait_for_plan_status(self.conveyor_client,
+                                  plan_id,
+                                  'plan_status',
+                                  ['cloning'])
+        self.wait_for_plan_status(self.conveyor_client,
+                                  plan_id,
+                                  'plan_status',
+                                  ['finished'])
+        # 7. check result
+        # 7.1 plan status is finished
+        plan_detail = self.conveyor_client.show_plan(plan_id)['plan']
+        self.assertEqual('finished', plan_detail['plan_status'])
+        # 7.2 has two vm as name is server_name
+        self.assertEqual(2, len(vm_list))
+        # 7.3 cloned vm increment one volume
+        clone_vm_info = \
+            self.servers_client.show_server(clone_vm['id'])['server']
+        vm_attachs = \
+            clone_vm_info.get('os-extended-volumes:volumes_attached', [])
+        add_vol_num = len(vm_attachs) - len(first_vm_attachs)
+        self.assertEqual(1, add_vol_num)
+
+        self.client.delete_cloned_resource(plan_id)
+        self.wait_for_plan_status(self.conveyor_client,
+                                  plan_id,
+                                  'task_status',
+                                  ['finished'])
 
     @test.attr(type='conveyor_smoke')
-    def test_clone_project_adding_server_private_aws(self):
-        pass
+    def test_clone_project_adding_server_private_to_aws(self):
+        # 1. create vm
+        networks = [{'uuid': self.net_ref}]
+        server_name = 'server-%s' % uuid.uuid4()
+        server = self.create_server(
+            networks=networks,
+            wait_until='ACTIVE',
+            name=server_name,
+            availability_zone=self.availability_zone_ref,
+            image_id=self.image_ref,
+            flavor=self.flavor_ref)
+        # 1.1 add server to cleanup after finished this test
+        # delete this server
+        server_info = \
+            self.servers_client.show_server(server['id'])['server']
+        self.addCleanup(self.clear_temp_servers, [server_info])
+
+        tenant_id = server_info.get('tenant_id', None)
+
+        # 2. create clone plan of this vm
+        kwargs = {'plan_type': 'clone',
+                  'clone_obj': [{'obj_type': 'project',
+                                 'obj_id': tenant_id}],
+                  'plan_name': 'test-server-plan'}
+        plan = self.conveyor_client.create_plan(**kwargs)
+        # 2.1 add plan to cleanup after finished this test
+        # delete this plan
+        plan_id = plan.get('plan', {}).get('plan_id', '')
+        plan_ids = [plan_id]
+        self.addCleanup(self._clean_plans, plan_ids)
+
+        self.wait_for_plan_status(self.conveyor_client,
+                                  plan_id,
+                                  'plan_status',
+                                  ['available'])
+        # 3. execute plan
+        az_map = {}
+        src_az = self.availability_zone_ref
+        des_az = CONF.conveyor.aws_region
+        az_map[src_az] = des_az
+        clone_resources = []
+        server_res = {'id': server['id'], 'type': 'OS::Nova::Server'}
+        net_res = {'id': self.net_ref, 'type': 'OS::Neutron::Net'}
+        flavor_res = {'id': self.flavor_ref, 'type': 'OS::Nova::Flavor'}
+        clone_resources.append(server_res)
+        clone_resources.append(net_res)
+        clone_resources.append(flavor_res)
+        kargs = {}
+        kargs['plan_id'] = plan_id
+        kargs['clone_resources'] = clone_resources
+        kargs['availability_zone_map'] = az_map
+        kargs['copy_data'] = False
+
+        self.conveyor_client.clone(**kargs)
+        self.wait_for_plan_status(self.conveyor_client,
+                                  plan_id,
+                                  'plan_status',
+                                  ['finished'])
+
+        server2_name = 'server-%s' % uuid.uuid4()
+        server2 = self.create_server(
+            networks=networks,
+            wait_until='ACTIVE',
+            name=server2_name,
+            availability_zone=self.availability_zone_ref,
+            image_id=self.image_ref,
+            flavor=self.flavor_ref)
+        # add a vmr
+        server2_info = \
+            self.servers_client.show_server(server2['id'])['server']
+        self.addCleanup(self.clear_temp_servers, [server2_info])
+        # 5. query topo for new resources
+        topo = \
+            self.conveyor_client.build_resources_topo(plan_id,
+                                                      az_map)['topo']
+        new_res, new_links = self._get_increment_resources(topo)
+        LOG.info('Private to aws increment resource:%(res)s,links: %(l)s',
+                 {'res': new_res, 'l': new_links})
+        # 6. execute plan
+        kargs['clone_resources'] = new_res
+        kargs['clone_links'] = new_links
+        self.conveyor_client.clone(**kargs)
+        self.wait_for_plan_status(self.conveyor_client,
+                                  plan_id,
+                                  'plan_status',
+                                  ['cloning'])
+        self.wait_for_plan_status(self.conveyor_client,
+                                  plan_id,
+                                  'plan_status',
+                                  ['finished'])
+        # 7. check result
+        # 7.1 plan status is finished
+        plan_detail = self.conveyor_client.show_plan(plan_id)['plan']
+        self.assertEqual('finished', plan_detail['plan_status'])
+        # 7.2 has two vm as name is server_name
+        params = {}
+        params['name'] = server_name
+        body = self.servers_client.list_servers(**params)
+        vm1_list = body['servers']
+        self.assertEqual(2, len(vm1_list))
+        # 7.3 cloned vm increment one volume
+        params['name'] = server2_name
+        body = self.servers_client.list_servers(**params)
+        vm2_list = body['servers']
+        self.assertEqual(2, len(vm2_list))
+
+        self.client.delete_cloned_resource(plan_id)
+        self.wait_for_plan_status(self.conveyor_client,
+                                  plan_id,
+                                  'task_status',
+                                  ['finished'])
 
     @test.attr(type='conveyor_smoke')
-    def test_clone_project_adding_server_aws_private(self):
-        pass
+    def test_clone_project_adding_server_aws_to_private(self):
+        # 1. create vm
+        networks = [{'uuid': self.net_ref}]
+        server_name = 'server-%s' % uuid.uuid4()
+        server = self.create_server(
+            networks=networks,
+            wait_until='ACTIVE',
+            name=server_name,
+            availability_zone=CONF.conveyor.aws_region,
+            image_id=self.image_ref,
+            flavor=self.flavor_ref)
+        # 1.1 add server to cleanup after finished this test
+        # delete this server
+        server_info = \
+            self.servers_client.show_server(server['id'])['server']
+        self.addCleanup(self.clear_temp_servers, [server_info])
+
+        tenant_id = server_info.get('tenant_id', None)
+
+        # 2. create clone plan of this vm
+        kwargs = {'plan_type': 'clone',
+                  'clone_obj': [{'obj_type': 'project',
+                                 'obj_id': tenant_id}],
+                  'plan_name': 'test-server-plan'}
+        plan = self.conveyor_client.create_plan(**kwargs)
+        # 2.1 add plan to cleanup after finished this test
+        # delete this plan
+        plan_id = plan.get('plan', {}).get('plan_id', '')
+        plan_ids = [plan_id]
+        self.addCleanup(self._clean_plans, plan_ids)
+
+        self.wait_for_plan_status(self.conveyor_client,
+                                  plan_id,
+                                  'plan_status',
+                                  ['available'])
+        # 3. execute plan
+        az_map = {}
+        src_az = CONF.conveyor.aws_region
+        des_az = self.availability_zone_ref
+        az_map[src_az] = des_az
+        clone_resources = []
+        server_res = {'id': server['id'], 'type': 'OS::Nova::Server'}
+        net_res = {'id': self.net_ref, 'type': 'OS::Neutron::Net'}
+        flavor_res = {'id': self.flavor_ref, 'type': 'OS::Nova::Flavor'}
+        clone_resources.append(server_res)
+        clone_resources.append(net_res)
+        clone_resources.append(flavor_res)
+        kargs = {}
+        kargs['plan_id'] = plan_id
+        kargs['clone_resources'] = clone_resources
+        kargs['availability_zone_map'] = az_map
+        kargs['copy_data'] = False
+
+        self.conveyor_client.clone(**kargs)
+        self.wait_for_plan_status(self.conveyor_client,
+                                  plan_id,
+                                  'plan_status',
+                                  ['finished'])
+
+        server2_name = 'server-%s' % uuid.uuid4()
+        server2 = self.create_server(
+            networks=networks,
+            wait_until='ACTIVE',
+            name=server2_name,
+            availability_zone=CONF.conveyor.aws_region,
+            image_id=self.image_ref,
+            flavor=self.flavor_ref)
+        # add a vmr
+        server2_info = \
+            self.servers_client.show_server(server2['id'])['server']
+        self.addCleanup(self.clear_temp_servers, [server2_info])
+        # 5. query topo for new resources
+        topo = \
+            self.conveyor_client.build_resources_topo(plan_id,
+                                                      az_map)['topo']
+        new_res, new_links = self._get_increment_resources(topo)
+        LOG.info('Private to aws increment resource:%(res)s,links: %(l)s',
+                 {'res': new_res, 'l': new_links})
+        # 6. execute plan
+        kargs['clone_resources'] = new_res
+        kargs['clone_links'] = new_links
+        self.conveyor_client.clone(**kargs)
+        self.wait_for_plan_status(self.conveyor_client,
+                                  plan_id,
+                                  'plan_status',
+                                  ['cloning'])
+        self.wait_for_plan_status(self.conveyor_client,
+                                  plan_id,
+                                  'plan_status',
+                                  ['finished'])
+        # 7. check result
+        # 7.1 plan status is finished
+        plan_detail = self.conveyor_client.show_plan(plan_id)['plan']
+        self.assertEqual('finished', plan_detail['plan_status'])
+        # 7.2 has two vm as name is server_name
+        params = {}
+        params['name'] = server_name
+        body = self.servers_client.list_servers(**params)
+        vm1_list = body['servers']
+        self.assertEqual(2, len(vm1_list))
+        # 7.3 cloned vm increment one volume
+        params['name'] = server2_name
+        body = self.servers_client.list_servers(**params)
+        vm2_list = body['servers']
+        self.assertEqual(2, len(vm2_list))
+
+        self.client.delete_cloned_resource(plan_id)
+        self.wait_for_plan_status(self.conveyor_client,
+                                  plan_id,
+                                  'task_status',
+                                  ['finished'])
 
     def clear_temp_servers(self, servers):
         LOG.debug('Clearing servers: %s', ','.join(
@@ -357,3 +816,59 @@ class CloneV1TestJSON(base.BaseConveyorTest):
             except Exception:
                 LOG.exception('Waiting for deletion of server %s failed'
                               % server['id'])
+
+    def _clean_volumes(self, volume_ids):
+        for volume_id in volume_ids:
+            try:
+                volume = self.volumes_client.show_volume(volume_id)['volume']
+                if volume['status'] == 'in-use':
+                    self.volumes_client.detach_volume(volume['id'])
+                    waiters.wait_for_volume_status(self.volumes_client,
+                                                   volume['id'],
+                                                   'available')
+                self.volumes_client.delete_volume(volume_id)
+            except Exception as e:
+                LOG.exception('Delete for cloned volume %(id)s error: %(e)s',
+                              {'id': volume_id, 'e': e})
+
+    def _clean_ports(self, port_ids):
+        for port_id in port_ids:
+            try:
+                self.ports_client.delete_port(port_id)
+            except Exception as e:
+                LOG.exception('Delete for cloned port %(id)s error: %(e)s',
+                              {'id': port_id, 'e': e})
+
+    def _clean_plans(self, plan_ids):
+        LOG.info('Clean create plan: %s', plan_ids)
+        for plan_id in plan_ids:
+            self.client.delete_plan(plan_id)
+
+    def _get_increment_resources(self, dependencies):
+        new_reses = []
+        new_links = []
+
+        def get_dependency_res(dep_id):
+            for dep in dependencies:
+                if dep_id == dep.get('id'):
+                    return dep
+            return None
+        for dependency in dependencies:
+            is_cloned = dependency.get('is_cloned', False)
+            if not is_cloned:
+                new_reses.append({'id': dependency.get('id'),
+                                  'type': dependency.get('type')})
+            d_dependencis = dependency.get('dependencies', [])
+            for d_dep in d_dependencis:
+                d_id = d_dep.get('id', '')
+                link_cloned = d_dep.get('is_cloned', False)
+                d_res = get_dependency_res(d_id)
+                if d_res:
+                    d_is_cloned = d_res.get('is_cloned', False)
+                    if not link_cloned and (d_is_cloned or is_cloned):
+                        link = {'src_id': d_id,
+                                'attach_id': dependency.get('id'),
+                                'src_type': d_res.get('type'),
+                                'attach_type': dependency.get('type')}
+                        new_links.append(link)
+        return new_reses, new_links

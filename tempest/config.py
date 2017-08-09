@@ -1317,12 +1317,12 @@ ConveyorGroup = [
                help="The identity region name to use. Also used as the other "
                     "services' region name unless they are set explicitly. "
                     "If no such region is found in the service catalog, the "
-                    "first found one is used."), 
+                    "first found one is used."),
     cfg.IntOpt('volume_size',
                default=1,
                help='Default size in GB for volumes created by volumes tests'),
     cfg.StrOpt('volume_type',
-                default=None,
+               default=None,
                help='volume type of volume'),
     cfg.StrOpt('floating_ip_pool_ref',
                default='',
