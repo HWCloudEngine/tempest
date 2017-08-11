@@ -23,7 +23,10 @@ from tempest import exceptions
 import tempest.test
 from oslo_log import log as logging
 
+LOG = logging.getLogger(__name__)
+
 CONF = config.CONF
+
 
 class BaseSGSTest(tempest.test.BaseTestCase):
     """Base test case class for all sgs API tests."""
@@ -58,6 +61,9 @@ class BaseSGSTest(tempest.test.BaseTestCase):
 
         cls.availability_zone_client = cls.os.availability_zone_client
         cls.sgs_volume_client = cls.os.sgs_volume_client
+        cls.sgs_replication_client = cls.os.sgs_replication_client
+        cls.sgs_backup_client = cls.os.sgs_backup_client
+        cls.sgs_snapshot_client = cls.os.sgs_snapshot_client
         if CONF.volume_feature_enabled.api_v1:
             cls.volumes_client = cls.os.volumes_client
         else:
@@ -68,12 +74,12 @@ class BaseSGSTest(tempest.test.BaseTestCase):
         super(BaseSGSTest, cls).resource_setup()
         cls.servers = []
         cls.volumes = []
-        cls.dr_servers = []
-        cls.dr_volumes = []
         cls.keypairs = []
-        cls.pro_test_vm_id = CONF.sgs.test_vm_id
-        cls.dr_test_vm_id = CONF.sgs.replication_test_vm_id
-
+        cls.local_test_vm_id = CONF.sgs.test_vm_id
+        cls.replication_test_vm_id = CONF.sgs.replication_test_vm_id
+        cls.local_zone = CONF.sgs.availability_zone
+        cls.replication_zone = CONF.sgs.replication_availability_zone
+        cls.metadata = {'Type': 'work'}
         if cls._api_version == 1:
             # Special fields and resp code for cinder v1
             cls.special_fields = {'name_field': 'display_name',
@@ -82,39 +88,18 @@ class BaseSGSTest(tempest.test.BaseTestCase):
             # Special fields and resp code for cinder v2
             cls.special_fields = {'name_field': 'name',
                                   'descrip_field': 'description'}
-        # Create 1 test volumes in both pro and dr site
-        test_volume_count = 1
-        cls.production_zone = CONF.sgs.availability_zone
-        cls.volume_id_list = []
-        cls.metadata = {'Type': 'work'}
-        for i in range(test_volume_count):
-            volume = cls.create_volume(metadata=cls.metadata, availability_zone=cls.production_zone)
-            volume = cls.volumes_client.show_volume(volume['id'])['volume']
-            cls.volumes.append(volume)
-            cls.volume_id_list.append(volume['id'])
-
-        cls.replication_zone = CONF.sgs.replication_availability_zone
-        cls.dr_volume_id_list = []
-        for i in range(test_volume_count):
-            volume = cls.create_volume(metadata=cls.metadata, availability_zone=cls.replication_zone)
-            volume = cls.volumes_client.show_volume(volume['id'])['volume']
-            cls.dr_volumes.append(volume)
-            cls.dr_volume_id_list.append(volume['id'])
-
 
     @classmethod
     def resource_cleanup(cls):
         super(BaseSGSTest, cls).resource_cleanup()
- #       cls.clear_servers()
+        cls.clear_servers()
         cls.clear_volumes()
         cls.clear_keypairs()
-
 
     @classmethod
     def clear_volumes(cls):
         volumes = []
         volumes.extend(cls.volumes)
-        volumes.extend(cls.dr_volumes)
         for volume in volumes:
             try:
                 cls.volumes_client.delete_volume(volume['id'])
@@ -139,7 +124,6 @@ class BaseSGSTest(tempest.test.BaseTestCase):
     def clear_servers(cls):
         servers = []
         servers.extend(cls.servers)
-        servers.extend(cls.dr_servers)
         LOG.debug('Clearing servers: %s', ','.join(
             server['id'] for server in servers))
         for server in servers:
@@ -189,11 +173,11 @@ class BaseSGSTest(tempest.test.BaseTestCase):
     @classmethod
     def create_volume(cls, **kwargs):
         """Wrapper utility that returns a test volume."""
-        name = data_utils.rand_name('tempest-volume')
 
         name_field = cls.special_fields['name_field']
+        if name_field not in kwargs:
+            kwargs[name_field] = data_utils.rand_name('tempest-volume')
 
-        kwargs[name_field] = name
         volume = cls.volumes_client.create_volume(**kwargs)['volume']
 
         cls.volumes.append(volume)
@@ -201,4 +185,32 @@ class BaseSGSTest(tempest.test.BaseTestCase):
                                        volume['id'], 'available')
         return volume
 
+    @classmethod
+    def create_local_volume(cls):
+        name_field = cls.special_fields['name_field']
+        prefix = 'tempest-local-volume'
+        prefix = prefix + time.strftime('-%Y-%m-%d-%H-%M',time.localtime(time.time()))
+        name = data_utils.rand_name(prefix)
+        kwargs = {
+            "metadata": cls.metadata,
+            "availability_zone": cls.local_zone,
+            name_field: name
+        }
+        volume = cls.create_volume(**kwargs)
+        volume = cls.volumes_client.show_volume(volume['id'])['volume']
+        return volume
 
+    @classmethod
+    def create_replication_volume(cls):
+        name_field = cls.special_fields['name_field']
+        prefix = 'tempest-replication-volume'
+        prefix = prefix + time.strftime('-%Y-%m-%d-%H-%M', time.localtime(time.time()))
+        name = data_utils.rand_name(prefix)
+        kwargs = {
+            "metadata": cls.metadata,
+            "availability_zone": cls.replication_zone,
+            name_field: name
+        }
+        volume = cls.create_volume(**kwargs)
+        volume = cls.volumes_client.show_volume(volume['id'])['volume']
+        return volume
